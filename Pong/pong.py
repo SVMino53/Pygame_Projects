@@ -124,7 +124,7 @@ class Player:
         return False
 
 
-player1 = Player("Isak", pygame.Vector2(100, 100))
+player1 = Player("Isak", (100, 100))
 
 while running:
     for event in pygame.event.get():
@@ -141,6 +141,6 @@ while running:
     # flip() the display to put your work on screen
     pygame.display.flip()
 
-    dt = clock.tick(10)/1000
+    dt = clock.tick(60)/1000
 
 pygame.quit()
