@@ -1,6 +1,7 @@
 import pygame
-from enum import Enum
 import random
+from enum import Enum
+from typing import Literal
 
 
 
@@ -69,6 +70,9 @@ class TileGrid:
         self.tile_piv_y = tile_pivot[1]
         self.coord_tiles : dict[tuple[int, int], list[Tile]] = {}
 
+    def clear(self) -> None:
+        self.coord_tiles = {}
+
     def add_tile(self, tile : Tile) -> None:
         if (tile.x, tile.y) not in self.coord_tiles.keys():
             self.coord_tiles[(tile.x, tile.y)] = []
@@ -94,6 +98,23 @@ class TileGrid:
                 else:
                     i += 1
             return tiles
+        return self.coord_tiles.pop((x, y), None)
+    
+    def pop_tile(self, x : int, y : int, tag : str = None) -> Tile:
+        if (x, y) not in self.coord_tiles.keys():
+            return None
+        if isinstance(tag, str):
+            ret_tile = None
+            for i in range(len(self.coord_tiles[(x, y)])):
+                if self.coord_tiles[(x, y)][i].has_tag(tag):
+                    ret_tile = self.coord_tiles[(x, y)].pop(i)
+                    if self.coord_tiles[(x, y)] == []:
+                        self.coord_tiles.pop((x, y))
+                    break
+            return ret_tile
+        ret_tile = self.coord_tiles[(x, y)].pop(0)
+        if self.coord_tiles[(x, y)] == []:
+            self.coord_tiles.pop((x, y))
         return self.coord_tiles.pop((x, y), None)
     
     def draw_grid(self, renderer : pygame.Surface, color : tuple[int] = (255, 255, 255, 255)) -> None:
@@ -154,11 +175,13 @@ class Snake:
         self.k_down = k_down
         self.k_left = k_left
         self.k_right = k_right
+        self.move_clock = 0
         self.dir = Direction.UP
         self.prev_dir = Direction.UP
         self.part_coords = [(x, y) for _ in range(start_len)]
         self.bodypart_pre.set_coords(x, y)
-        grid.add_tile(self.bodypart_pre.copy())
+        for _ in self.part_coords:
+            grid.add_tile(self.bodypart_pre.copy())
 
     def increase_length(self, amount : int = 1) -> None:
         for _ in range(amount):
@@ -178,10 +201,21 @@ class Snake:
             self.x += 1
         self.part_coords[0] = (self.x, self.y)
         self.prev_dir = self.dir
-        if tail != self.part_coords[-1]:
-            self.grid.pop_tiles(tail[0], tail[1], "snake")
+        self.grid.pop_tile(tail[0], tail[1], "snake")
         self.bodypart_pre.set_coords(self.x, self.y)
         self.grid.add_tile(self.bodypart_pre.copy())
+
+    # - Called from main script -
+    def update(self, dt : float) -> None:
+        self.move_clock += dt
+        move_delay_time = 1/self.speed
+        if self.move_clock >= move_delay_time:
+            self.move_clock -= move_delay_time
+            self.move()
+            if len(self.grid.get_tiles(self.x, self.y, "snake")) == 2:
+                pass
+            elif len(self.grid.get_tiles(self.x, self.y, "food")) == 1:
+                self.increase_length()
 
     def check_key_pressed(self, keys : pygame.key.ScancodeWrapper) -> None:
         if self.prev_dir == Direction.UP or self.prev_dir == Direction.DOWN:
@@ -203,14 +237,15 @@ SCREEN_HEIGHT = 720
 pygame.init()
 window = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
-running = True
 dt = 0      # Delta time, i.e. time ellapsed since the last frame, in seconds.
+game_state : Literal["game", "gameover", "menu", "hiscore"] = "game"
+running = True
 
 TILE_WIDTH = 20
 TILE_HEIGHT = 20
-X_MIN = -SCREEN_WIDTH//TILE_WIDTH//2
+X_MIN = -SCREEN_WIDTH//TILE_WIDTH//2 + 1
 X_MAX = SCREEN_WIDTH//TILE_WIDTH//2
-Y_MIN = -SCREEN_HEIGHT//TILE_HEIGHT//2
+Y_MIN = -SCREEN_HEIGHT//TILE_HEIGHT//2 + 1
 Y_MAX = SCREEN_HEIGHT//TILE_HEIGHT//2
 grid = TileGrid(SCREEN_WIDTH//2 - TILE_WIDTH//2, SCREEN_HEIGHT//2 - TILE_HEIGHT//2, TILE_WIDTH, TILE_HEIGHT)
 player = Snake(grid, 0, 0, Tile(0, 0, 0.8, 0.8, color=(255, 100, 200), tags=["snake"]), 5, 10)
@@ -219,6 +254,9 @@ apple = Tile(random.randint(X_MIN, X_MAX), random.randint(Y_MIN, Y_MAX),
 grid.add_tile(apple)
 move_delay_time = 0
 
+# debugging
+###
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -226,20 +264,28 @@ while running:
 
     # fill the screen with a color to wipe away anything from last frame
     window.fill((10, 30, 10))
-
-    if move_delay_time*player.speed >= 1:
-        player.move()
-        move_delay_time -= 1/player.speed
-    if player.x == apple.x and player.y == apple.y:
-        grid.pop_tiles(apple.x, apple.y, "food")
-        apple.x = random.randint(X_MIN, X_MAX)
-        apple.y = random.randint(Y_MIN, Y_MAX)
-        grid.add_tile(apple)
-        player.increase_length()
     keys = pygame.key.get_pressed()
-    player.check_key_pressed(keys)
 
-    grid.render_tiles(window)
+    if game_state == "game":
+        # if move_delay_time*player.speed >= 1:
+        #     player.move()
+        #     move_delay_time -= 1/player.speed
+        if player.x == apple.x and player.y == apple.y:
+            grid.pop_tile(apple.x, apple.y, "food")
+            apple.x = random.randint(X_MIN, X_MAX)
+            apple.y = random.randint(Y_MIN, Y_MAX)
+            grid.add_tile(apple)
+            #player.increase_length()
+        elif (len(grid.get_tiles(player.x, player.y, "snake")) == 2 or
+              player.x < X_MIN or player.x > X_MAX or player.y < Y_MIN or player.y > Y_MAX):
+            game_state = "game_over"
+            grid.clear()
+        
+        player.update(dt)
+        player.check_key_pressed(keys)
+        grid.render_tiles(window)
+    elif game_state == "game_over":
+        pass
 
     # flip() the display to put your work on screen
     pygame.display.flip()
