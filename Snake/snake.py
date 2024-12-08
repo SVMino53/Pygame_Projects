@@ -248,7 +248,8 @@ X_MAX = SCREEN_WIDTH//TILE_WIDTH//2
 Y_MIN = -SCREEN_HEIGHT//TILE_HEIGHT//2 + 1
 Y_MAX = SCREEN_HEIGHT//TILE_HEIGHT//2
 grid = TileGrid(SCREEN_WIDTH//2 - TILE_WIDTH//2, SCREEN_HEIGHT//2 - TILE_HEIGHT//2, TILE_WIDTH, TILE_HEIGHT)
-player = Snake(grid, 0, 0, Tile(0, 0, 0.8, 0.8, color=(255, 100, 200), tags=["snake"]), 5, 10)
+player1 = Snake(grid, -10, 0, Tile(0, 0, 0.8, 0.8, color=(255, 100, 200), tags=["snake"]), 5, 10, pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d)
+player2 = Snake(grid, 10, 0, Tile(0, 0, 0.8, 0.8, color=(255, 150, 100), tags=["snake"]), 5, 10)
 apple = Tile(random.randint(X_MIN, X_MAX), random.randint(Y_MIN, Y_MAX),
              0.8, 0.8, (0, 0), (255, 255, 0), ["food"])
 grid.add_tile(apple)
@@ -267,22 +268,29 @@ while running:
     keys = pygame.key.get_pressed()
 
     if game_state == "game":
-        # if move_delay_time*player.speed >= 1:
-        #     player.move()
-        #     move_delay_time -= 1/player.speed
-        if player.x == apple.x and player.y == apple.y:
+        if (len(grid.get_tiles(player1.x, player1.y, "snake")) == 2 or
+            player1.x < X_MIN or player1.x > X_MAX or player1.y < Y_MIN or player1.y > Y_MAX):
+            game_state = "game_over"
+            grid.clear()
+        elif player1.x == apple.x and player1.y == apple.y:
             grid.pop_tile(apple.x, apple.y, "food")
             apple.x = random.randint(X_MIN, X_MAX)
             apple.y = random.randint(Y_MIN, Y_MAX)
             grid.add_tile(apple)
-            #player.increase_length()
-        elif (len(grid.get_tiles(player.x, player.y, "snake")) == 2 or
-              player.x < X_MIN or player.x > X_MAX or player.y < Y_MIN or player.y > Y_MAX):
+        if (len(grid.get_tiles(player2.x, player2.y, "snake")) == 2 or
+            player2.x < X_MIN or player2.x > X_MAX or player2.y < Y_MIN or player2.y > Y_MAX):
             game_state = "game_over"
             grid.clear()
+        elif player2.x == apple.x and player2.y == apple.y:
+            grid.pop_tile(apple.x, apple.y, "food")
+            apple.x = random.randint(X_MIN, X_MAX)
+            apple.y = random.randint(Y_MIN, Y_MAX)
+            grid.add_tile(apple)
         
-        player.update(dt)
-        player.check_key_pressed(keys)
+        player1.update(dt)
+        player1.check_key_pressed(keys)
+        player2.update(dt)
+        player2.check_key_pressed(keys)
         grid.render_tiles(window)
     elif game_state == "game_over":
         pass
